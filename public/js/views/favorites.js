@@ -33,8 +33,10 @@ async function load() {
   const body = container?.querySelector('#fav-body');
   try {
     const data = await api.favorites();
-    state.items = data.items || [];
-    store.setFavorites(state.items.map((c) => c.channel_id));
+    // 归一化为频道对象：id = channel_id，且本页条目必然已收藏，
+    // 这样卡片 data-id、播放高亮、星标填充都与其它页一致。
+    state.items = (data.items || []).map((c) => ({ ...c, id: c.channel_id, is_favorite: true }));
+    store.setFavorites(state.items.map((c) => c.id));
     render(body);
   } catch (err) {
     if (body) body.innerHTML = emptyState('加载失败', err.message || '请稍后重试');
@@ -69,21 +71,50 @@ function render(body) {
   `;
 }
 
+function markPlaying(root, playingId) {
+  root.querySelectorAll('.channel-card, .station-row').forEach((node) => {
+    node.classList.toggle('is-playing', !!playingId && node.dataset.id === playingId);
+  });
+}
+
 function bind(container) {
+  // 播放状态同步：其它页（广播/电视）都有 player:change 监听，收藏页
+  // 原来没有，播完卡片不会亮，离开本页再回来才对——现在补上。
+  const onPlayerChange = () => markPlaying(container, player.currentChannel()?.id);
+  document.addEventListener('player:change', onPlayerChange);
+  document.addEventListener(
+    'view:leave',
+    () => document.removeEventListener('player:change', onPlayerChange),
+    { once: true }
+  );
+
   on(container, 'click', '.channel-card, .station-row', async (event, node) => {
-    if (event.target.closest('[data-action="unfav"]')) return;
-    const item = state.items.find((c) => c.channel_id === node.dataset.id);
+    // 卡片上的星标实际是 data-action="fav"，原来这里拦截的是不存在的
+    // "unfav"，导致点星标也会走到播放分支（且因 id 为空直接 return）。
+    if (event.target.closest('[data-action="fav"]')) return;
+    const item = state.items.find((c) => c.id === node.dataset.id);
     if (!item) return;
-    await player.play({
-      id: item.channel_id,
-      kind: item.kind,
-      name: item.name,
-      stream_url: item.stream_url,
-      logo_url: item.logo_url
-    });
+    await player.play(item);
+    markPlaying(container, item.id);
   });
 
-  on(container, 'click', '[data-action="unfav"]', async (event, button) => {
+  // 键盘可达：卡片本身有 tabindex/role="button"，但原来没有任何键盘
+  // 处理，键盘用户同样“点不了”——回车/空格与点击等价。
+  container.addEventListener('keydown', async (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const node = event.target.closest?.('.channel-card, .station-row');
+    if (!node || !container.contains(node)) return;
+    if (event.target.closest('[data-action="fav"]')) return;
+    event.preventDefault();
+    const item = state.items.find((c) => c.id === node.dataset.id);
+    if (!item) return;
+    await player.play(item);
+    markPlaying(container, item.id);
+  });
+
+  // 收藏页的星标 = 取消收藏：按卡片实际的 data-action="fav" 拦截，
+  // 而不是原来不存在的 "unfav"。
+  on(container, 'click', '[data-action="fav"]', async (event, button) => {
     event.stopPropagation();
     try {
       await api.removeFavorite(button.dataset.id);
