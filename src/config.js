@@ -8,12 +8,15 @@ const DEFAULTS = {
   MAX_PAGE_SIZE: 200,
   IPTV_INDEX_URL: 'https://iptv-org.github.io/iptv/index.m3u',
   IPTV_COUNTRIES_URL: 'https://iptv-org.github.io/api/countries.json',
-  IPTV_SYNC_COUNTRIES_PER_RUN: 24,
+  // 优化：降低每轮同步量，配合 upsertMany 的“无变化不写”，把 D1 日写入
+  // 从上限 24 国 x 1500 条 + 10 页 x 500 条，降到 8 国 + 4 页 x 500 条。
+  // 仍可通过环境变量覆盖回原值，不改同步逻辑本身。
+  IPTV_SYNC_COUNTRIES_PER_RUN: 8,
   RADIO_BROWSER_API: 'https://de1.api.radio-browser.info',
-  RADIO_SYNC_PAGES_PER_RUN: 10,
+  RADIO_SYNC_PAGES_PER_RUN: 4,
   RADIO_SYNC_PAGE_SIZE: 500,
   EPG_BASE_URL: 'https://iptv-org.github.io/epg/guides',
-  EPG_TTL_SECONDS: 21600,
+  EPG_TTL_SECONDS: 43200,
   PROXY_MAX_URL_LENGTH: 2048,
   USER_AGENT: 'iptv-radio-panel/1.0',
   HISTORY_KEEP: 100

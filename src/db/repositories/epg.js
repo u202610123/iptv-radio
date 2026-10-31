@@ -1,9 +1,35 @@
 import { all, run, batchChunked } from '../index.js';
 
-/** 写入节目单（同频道先清后写） */
+/**
+ * 写入节目单（优化：无变化不写）
+ * 原逻辑每次过期都先删后全量重插，哪怕节目单没变也烧掉一批 D1 写入。
+ * 这里先读回现有节目，比对标题/描述/起止时间，完全一致时直接跳过。
+ */
 export async function replaceForChannel(env, channelId, programs, now = Date.now()) {
+  if (!programs.length) {
+    await run(env, 'DELETE FROM epg_programs WHERE channel_id = ?', [channelId]);
+    return { count: 0 };
+  }
+  try {
+    const existing = await all(
+      env,
+      'SELECT title, description, start_ts, stop_ts FROM epg_programs WHERE channel_id = ? ORDER BY start_ts ASC',
+      [channelId]
+    );
+    const same =
+      existing.length === programs.length &&
+      existing.every(
+        (r, i) =>
+          r.title === (programs[i].title || '未知节目') &&
+          (r.description ?? null) === (programs[i].description || null) &&
+          r.start_ts === programs[i].start_ts &&
+          (r.stop_ts ?? null) === (programs[i].stop_ts || null)
+      );
+    if (same) return { count: programs.length, skippedUnchanged: true };
+  } catch {
+    /* 读失败时回退到原先清后写，保证节目单不中断 */
+  }
   await run(env, 'DELETE FROM epg_programs WHERE channel_id = ?', [channelId]);
-  if (!programs.length) return { count: 0 };
   const statements = programs.map((p) => ({
     sql: `INSERT INTO epg_programs (id, channel_id, title, description, start_ts, stop_ts, updated_at)
           VALUES (?,?,?,?,?,?,?)

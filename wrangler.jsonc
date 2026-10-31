@@ -35,12 +35,12 @@
 		"MAX_PAGE_SIZE": "200",
 		"IPTV_INDEX_URL": "https://iptv-org.github.io/iptv/index.m3u",
 		"IPTV_COUNTRIES_URL": "https://iptv-org.github.io/api/countries.json",
-		"IPTV_SYNC_COUNTRIES_PER_RUN": "24",
+		"IPTV_SYNC_COUNTRIES_PER_RUN": "8",
 		"RADIO_BROWSER_API": "https://de1.api.radio-browser.info",
-		"RADIO_SYNC_PAGES_PER_RUN": "10",
+		"RADIO_SYNC_PAGES_PER_RUN": "4",
 		"RADIO_SYNC_PAGE_SIZE": "500",
 		"EPG_BASE_URL": "https://iptv-org.github.io/epg/guides",
-		"EPG_TTL_SECONDS": "21600",
+		"EPG_TTL_SECONDS": "43200",
 		"PROXY_MAX_URL_LENGTH": "2048",
 		"USER_AGENT": "iptv-radio-panel/1.0 (+https://github.com/)"
 	}

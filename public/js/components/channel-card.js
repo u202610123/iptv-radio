@@ -4,6 +4,8 @@ import { html, raw, initials, icon } from '../lib/dom.js';
 export function channelCard(channel, playingId) {
   const playing = channel.id === playingId ? ' is-playing' : '';
   const favOn = channel.is_favorite ? ' is-on' : '';
+  // 优化：上游常把缺失分类写成字面量 'Undefined'，直接隐藏，不再占一个标签位。
+  const category = channel.category && channel.category !== 'Undefined' ? channel.category : '';
   const logo = channel.logo_url
     ? html`<img class="channel-card__logo" src="${channel.logo_url}" alt="${channel.name}"
         loading="lazy" referrerpolicy="no-referrer" onerror="window.__imgFallback?.(event)" />`
@@ -18,7 +20,7 @@ export function channelCard(channel, playingId) {
       <div class="channel-card__name">${channel.name}</div>
       <div class="channel-card__meta">
         ${channel.country ? html`<span class="tag">${channel.country}</span>` : ''}
-        ${channel.category ? html`<span class="tag">${channel.category}</span>` : ''}
+        ${category ? html`<span class="tag">${category}</span>` : ''}
       </div>
     </article>
   `;
@@ -28,6 +30,7 @@ export function channelCard(channel, playingId) {
 export function stationRow(channel, playingId) {
   const playing = channel.id === playingId ? ' is-playing' : '';
   const favOn = channel.is_favorite ? ' is-on' : '';
+  const category = channel.category && channel.category !== 'Undefined' ? channel.category : '';
   const logo = channel.logo_url
     ? html`<img class="station-row__logo" src="${channel.logo_url}" alt="${channel.name}"
         loading="lazy" referrerpolicy="no-referrer" onerror="window.__imgFallback?.(event)" />`
@@ -42,7 +45,7 @@ export function stationRow(channel, playingId) {
         <div class="station-row__meta">
           ${channel.band ? html`<span class="band-badge band-badge--${channel.band}">${channel.band}</span>` : ''}
           ${channel.country ? html`<span>${channel.country}</span>` : ''}
-          ${channel.category ? html`<span>· ${channel.category}</span>` : ''}
+          ${category ? html`<span>· ${category}</span>` : ''}
         </div>
       </div>
       <button class="icon-btn" data-action="fav" data-id="${channel.id}" title="收藏">${raw(icon('star', 16, channel.is_favorite ? 'is-on' : ''))}</button>

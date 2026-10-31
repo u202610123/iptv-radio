@@ -58,12 +58,58 @@ export function toRow(ch, now = Date.now()) {
   ];
 }
 
-/** 批量写入/更新频道 */
+/**
+ * 批量写入/更新频道（优化：无变化不写）
+ * 原逻辑每次同步都全量重写，哪怕数据没变也计入 D1 写入行数，是写爆免费
+ * 额度的主要原因之一。这里先按 id 批量读回现有行，只写新增或字段有变化
+ * 的行；读的额度（免费 500 万行/天）远比写（10 万行/天）宽松。
+ */
 export async function upsertMany(env, channels, chunkSize = 80) {
   const rows = channels.filter((c) => c && (c.stream_url || c.streamUrl) && c.id);
   if (!rows.length) return { count: 0 };
-  const statements = rows.map((c) => ({ sql: UPSERT_SQL, params: toRow(c) }));
-  return batchChunked(env, statements, chunkSize);
+  const changed = [];
+  for (let i = 0; i < rows.length; i += 100) {
+    const slice = rows.slice(i, i + 100);
+    const placeholders = slice.map(() => '?').join(',');
+    let existing = [];
+    try {
+      existing = await all(
+        env,
+        `SELECT id, name, stream_url, logo_url, country, country_code, language, category, band, source, subscription_id, extra FROM channels WHERE id IN (${placeholders})`,
+        slice.map((c) => c.id)
+      );
+    } catch {
+      existing = [];
+    }
+    const byId = new Map(existing.map((r) => [r.id, r]));
+    for (const c of slice) {
+      const row = toRow(c);
+      const old = byId.get(c.id);
+      if (!old) {
+        changed.push(c);
+        continue;
+      }
+      // toRow 顺序：id, kind, name, stream_url, logo_url, country, country_code,
+      // language, category, band, source, subscription_id, extra, is_active, updated_at
+      const same =
+        old.name === row[2] &&
+        old.stream_url === row[3] &&
+        (old.logo_url ?? null) === (row[4] ?? null) &&
+        (old.country ?? null) === (row[5] ?? null) &&
+        (old.country_code ?? null) === (row[6] ?? null) &&
+        (old.language ?? null) === (row[7] ?? null) &&
+        (old.category ?? null) === (row[8] ?? null) &&
+        (old.band ?? null) === (row[9] ?? null) &&
+        old.source === row[10] &&
+        (old.subscription_id ?? null) === (row[11] ?? null) &&
+        (old.extra ?? '{}') === row[12];
+      if (!same) changed.push(c);
+    }
+  }
+  if (!changed.length) return { count: 0, skippedUnchanged: rows.length };
+  const statements = changed.map((c) => ({ sql: UPSERT_SQL, params: toRow(c) }));
+  const res = await batchChunked(env, statements, chunkSize);
+  return { ...res, skippedUnchanged: rows.length - changed.length };
 }
 
 /** 单条写入/更新 */
@@ -143,6 +189,66 @@ function topicClause(topic) {
   return `(${parts.join(' OR ')})`;
 }
 
+/**
+ * 优化：专题二次筛选与去重（只在 topic 查询时走内存路径，佛教专题仅 74 条量级）
+ * 问题根源：SQL LIKE 是子串匹配，'zen' 会命中 Citizen / Plzen / Concertzender，
+ * 'chant' 会命中 Chante France；且同名不同源的频道 id 不同，列表里会重复出现。
+ * 规则：
+ *  - 强词（buddha / dharma / 佛 / 佛教 / 念佛 …）命中即保留，得 3 分；
+ *  - 弱词（zen / chant / lotus / temple / mantra / 禅）必须按词边界命中才保留，
+ *    得 2 分，子串命中（如 Citizen、Chante）直接排除；
+ *  - 同 kind、同归一化名只保留第一条（优先强词高分、名字短的），实现页头
+ *    承诺的“同名多源切换”在列表层面的去重，详情里仍可多源。
+ */
+const TOPIC_STRONG = [
+  'buddha', 'buddhist', 'buddhism', 'dharma', 'dhamma', 'dhammapada',
+  'mahayana', 'theravada', 'vajrayana', 'nikaya', 'vinaya',
+  '佛', '佛教', '佛法', '念佛', '诵经', '法师', '寺庙', '寺院', '菩萨',
+  '观音', '地藏', '药师', '弥陀', '心经', '金刚经', '大悲咒', '楞严',
+  '华严', '法华', '无量寿', '菩提', '共修', '三时系念', '蒙山', '焰口', '法会', '道场'
+];
+const TOPIC_WEAK_ASCII = ['zen', 'chant', 'lotus', 'temple', 'monastery', 'mantra', 'metta', 'kannon', 'guanyin', 'amitabha', 'sutra'];
+
+function topicScore(row) {
+  const blob = `${row.name || ''} ${row.category || ''}`;
+  const lower = blob.toLowerCase();
+  for (const w of TOPIC_STRONG) {
+    if (lower.includes(w.toLowerCase())) return 3;
+  }
+  for (const w of TOPIC_WEAK_ASCII) {
+    if (new RegExp(`\\b${w}\\b`, 'i').test(blob)) return 2;
+  }
+  if (blob.includes('禅')) return 2;
+  return 0;
+}
+
+export function normalizeChannelName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\[(geo-blocked|not 24\/7|24\/7)\]/gi, '')
+    .replace(/\(?\b\d{3,4}p\b\)?/gi, '')
+    .replace(/\(?\b\d{3,4}i\b\)?/gi, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** 对专题候选行打分、排除弱子串误伤、按 kind+归一化名去重、按分排序 */
+export function filterTopicRows(rows) {
+  const seen = new Set();
+  const kept = [];
+  for (const row of rows) {
+    const score = topicScore(row);
+    if (score <= 0) continue;
+    const key = `${row.kind || ''}:${normalizeChannelName(row.name)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push({ ...row, _topicScore: score });
+  }
+  kept.sort((a, b) => b._topicScore - a._topicScore || String(a.name).localeCompare(String(b.name)));
+  return kept.map(({ _topicScore, ...row }) => row);
+}
+
 function buildWhere(filters) {
   const clauses = ['c.is_active = 1'];
   const params = [];
@@ -201,6 +307,13 @@ export async function list(env, filters = {}) {
   const orderBy = SORTS[filters.sort] || SORTS.name;
   const q = (filters.q || '').trim();
 
+  // 专题查询（无关键词时）：先用 SQL 宽匹配取候选，再在内存里打分/去重/分页，
+  // 否则 LIKE 子串误伤和同名重复会直接出现在分页结果里。
+  if (!q && filters.topic && TOPICS[filters.topic]) {
+    const candidates = await all(env, `SELECT * FROM channels c WHERE ${whereSql}`, params);
+    return filterTopicRows(candidates).slice(offset, offset + pageSize);
+  }
+
   if (q) {
     const match = buildFtsQuery(q);
     const ftsSql = `
@@ -236,6 +349,11 @@ export async function list(env, filters = {}) {
 export async function count(env, filters = {}) {
   const { whereSql, params } = buildWhere(filters);
   const q = (filters.q || '').trim();
+  // 与 list 的专题路径保持一致：总数 = 打分去重后的条数，不是 SQL 宽匹配数。
+  if (!q && filters.topic && TOPICS[filters.topic]) {
+    const candidates = await all(env, `SELECT * FROM channels c WHERE ${whereSql}`, params);
+    return filterTopicRows(candidates).length;
+  }
   if (q) {
     const match = buildFtsQuery(q);
     try {

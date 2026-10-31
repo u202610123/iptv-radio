@@ -174,11 +174,20 @@
   outline: none;
 }
 
+/* 优化：筛选标签不再纵向堆成一堵墙，改为单行横向滚动，配色和标签本身不变 */
 .filters__scroll {
-  max-height: 200px
-;
-  overflow-y: auto;
-  padding-right: 4px;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  max-height: none;
+}
+
+.filters__scroll .chip {
+  flex: 0 0 auto;
 }
 
 /* ============ 频道网格 ============ */

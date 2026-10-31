@@ -14,7 +14,9 @@ const state = {
   total: 0,
   loading: false,
   container: null,
-  byId: new Map()
+  byId: new Map(),
+  radioItems: [],
+  iptvItems: []
 };
 
 function debounce(fn, ms = 350) {
@@ -35,6 +37,8 @@ export default {
     state.q = '';
     state.total = 0;
     state.byId = new Map();
+    state.radioItems = [];
+    state.iptvItems = [];
 
     container.innerHTML = html`
       <div class="buddhist-head glass">
@@ -93,12 +97,31 @@ function bind(container) {
       load({ reset: true });
     })
   );
+
+  // 优化：顶栏全局搜索在佛教页原来是无效的（本页没监听 global-search），
+  // 现在把它接到本页搜索上，两个搜索框不再各说各话。
+  const onGlobalSearch = (event) => {
+    state.q = event.detail || '';
+    const input = $('#buddhist-search', container);
+    if (input) input.value = state.q;
+    load({ reset: true });
+  };
+  document.addEventListener('global-search', onGlobalSearch);
+  document.addEventListener(
+    'view:leave',
+    () => document.removeEventListener('global-search', onGlobalSearch),
+    { once: true }
+  );
 }
 
-async function load({ reset = false } = {}) {
+async function load({ reset = false, append = false } = {}) {
   const c = state.container;
   if (!c) return;
   if (reset) state.page = 1;
+  if (reset) {
+    state.radioItems = [];
+    state.iptvItems = [];
+  }
   state.loading = true;
   const host = $('#buddhist-result', c);
   host.innerHTML =
@@ -121,7 +144,11 @@ async function load({ reset = false } = {}) {
     }
 
     state.total = (radio.total || 0) + (iptv.total || 0);
-    renderResults(host, radio.items || [], iptv.items || []);
+    // 优化：原来“加载更多”会把上一页替换掉（loadMore 后只剩新一页），
+    // 现在追加累积，翻页不再丢已看过的条目。
+    state.radioItems = append ? state.radioItems.concat(radio.items || []) : radio.items || [];
+    state.iptvItems = append ? state.iptvItems.concat(iptv.items || []) : iptv.items || [];
+    renderResults(host, state.radioItems, state.iptvItems);
   } catch (err) {
     host.innerHTML = emptyState('暂时无法加载佛学频道', err?.message || '请稍后重试').toString();
   } finally {
@@ -159,7 +186,7 @@ function renderResults(host, radioItems, iptvItems) {
 
 function loadMore() {
   state.page += 1;
-  load();
+  load({ append: true });
 }
 
 async function toggleFav(id) {

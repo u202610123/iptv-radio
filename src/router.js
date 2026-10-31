@@ -92,8 +92,9 @@ export function createRouter() {
           message: String(err?.message || err)
         }));
         if (err && err.status) return fail(err.status, err.code || 'BAD_REQUEST', err.message);
-        // 诊断模式：把异常信息带回响应（仅内部错误），便于线上排障
-        return serverError(`服务内部错误: ${String(err?.message || err).slice(0, 200)}`);
+        // 优化：不再把原始错误透传给前端（曾在页面上直接露出 D1_ERROR），
+        // 原始错误仍由上方 console.error 记录，供服务端日志排障。
+        return serverError('服务内部错误');
       }
     }
   };
