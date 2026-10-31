@@ -123,9 +123,12 @@ export async function* parseM3UStream(body, options = {}) {
   }
 }
 
-/** 判断是否为 m3u8（HLS）流 */
+/** 判断是否为 m3u8 播放列表（注意：不是“是不是 HLS 流”）。
+ * video/mp2t 是 TS 分片（二进制），绝不能算播放列表：算错的话代理会
+ * 把分片当文本读（UTF-8 替换字符）再改写，结果是损坏的垃圾文本，
+ * hls.js 解不出码就会一直转圈。分片必须原样透传。 */
 export function isHls(url, contentType = '') {
-  if (contentType && /application\/vnd\.apple\.mpegurl|application\/x-mpegURL|audio\/mpegurl|video\/mp2t/i.test(contentType)) {
+  if (contentType && /application\/vnd\.apple\.mpegurl|application\/x-mpegURL|audio\/mpegurl|audio\/x-mpegurl/i.test(contentType)) {
     return true;
   }
   return /\.m3u8(\?|$)/i.test(String(url || ''));

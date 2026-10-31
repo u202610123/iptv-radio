@@ -138,7 +138,11 @@ export async function proxyStream(env, rawUrl, request, options = {}) {
   }
 
   const contentType = upstreamResponse.headers.get('content-type') || '';
-  const isPlaylist = isHls(upstream.toString(), contentType) || /audio\/mpegurl|audio\/x-mpegurl/i.test(contentType);
+  // 第二道防线：分片扩展名（.ts/.m4s/.mp4/.aac/.mp3）一律按二进制透传，
+  // 绝不进文本改写分支，哪怕上游 content-type 写得不规范。
+  const urlPath = upstream.toString().split('?')[0].toLowerCase();
+  const isSegment = /\.(ts|m4s|mp4|aac|mp3)$/.test(urlPath);
+  const isPlaylist = !isSegment && (isHls(upstream.toString(), contentType) || /audio\/mpegurl|audio\/x-mpegurl/i.test(contentType));
 
   if (!isPlaylist || !rewrite) {
     return new Response(upstreamResponse.body, { status: upstreamResponse.status, headers: responseHeaders });
