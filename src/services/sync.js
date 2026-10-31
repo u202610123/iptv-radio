@@ -75,12 +75,14 @@ export async function runSync(env, options = {}) {
 
   summary.finishedAt = Date.now();
   summary.durationMs = summary.finishedAt - summary.startedAt;
-  // 同步后统一刷新统计缓存（计数 + 分面），平时请求路径只读 meta 单行，避免全表扫描
-  const [counts] = await Promise.all([
-    statsService.refreshCounts(env),
-    statsService.refreshFacets(env, 'iptv'),
-    statsService.refreshFacets(env, 'radio')
-  ]);
+  // 省资源：以前每次同步结束都强制全表扫三遍（计数 + 两个分面），
+  // 一天 4 轮同步就是十几遍全表扫描。改成：计数只读 meta 单行，
+  // 只有当计数缓存缺失或超过 24 小时才重算一次；分面完全交给
+  // 24 小时 TTL（请求路径过期时自然刷新），同步结束不再主动扫。
+  let counts = await statsService.getCounts(env);
+  if (!counts || !counts.updatedAt || Date.now() - counts.updatedAt > 24 * 60 * 60 * 1000) {
+    counts = await statsService.refreshCounts(env);
+  }
   summary.totals = {
     iptv: counts.iptv,
     radio: counts.radio,

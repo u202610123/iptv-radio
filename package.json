@@ -1,6 +1,6 @@
 {
   "name": "iptv-radio-panel",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "private": true,
   "type": "module",
   "description": "Cloudflare Workers 上的全球 IPTV + FM/AM/SW 广播聚合播放面板（模块化设计）",

@@ -94,6 +94,12 @@ export function createRouter() {
         if (err && err.status) return fail(err.status, err.code || 'BAD_REQUEST', err.message);
         // 优化：不再把原始错误透传给前端（曾在页面上直接露出 D1_ERROR），
         // 原始错误仍由上方 console.error 记录，供服务端日志排障。
+        // 但额度类错误要给用户一个可行动的提示，否则只会看到“服务内部
+        // 错误”然后反复刷新，越刷越烧额度。
+        const msg = String(err?.message || err);
+        if (/exceeded|daily.*limit|D1_ERROR|too many|quota/i.test(msg)) {
+          return fail(503, 'QUOTA_EXCEEDED', '今日数据库用量已用完，明早 8 点自动恢复，请勿重复刷新或同步');
+        }
         return serverError('服务内部错误');
       }
     }

@@ -70,9 +70,14 @@ export async function importFromUrl(env, { url, name, kind = 'iptv', subscriptio
   if (!subscriptionId) {
     await subsRepo.create(env, { id, name: name || check.url.hostname, url: check.url.toString(), kind });
   }
-  // 先清理旧数据，保证删除的频道不会残留
-  await channelsRepo.removeBySubscription(env, id);
+  // 省资源：不再先全删后全插（那样每行都要付一次删除 + 一次插入 +
+  // 全文搜索触发器的写入，哪怕内容完全没变）。先用 upsertMany 的
+  // “没变就不写”入库，再只删新列表里确实消失的台。
+  const oldIds = await channelsRepo.idsBySubscription(env, id);
   const result = await importEntries(env, entries, { kind, source: 'custom', subscriptionId: id });
+  const newIds = new Set((result.rows || []).map((r) => r.id));
+  const gone = oldIds.filter((oldId) => !newIds.has(oldId));
+  if (gone.length) await channelsRepo.removeByIds(env, gone);
   await subsRepo.markSynced(env, id, result.imported);
   log.info('订阅导入完成', { subscription: id, count: result.imported, url: safeUrl(url) });
   return { subscriptionId: id, ...result };

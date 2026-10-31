@@ -12,7 +12,7 @@ const log = createLogger('service:stats');
 const COUNTS_KEY = 'stats:counts';
 const FACETS_PREFIX = 'stats:facets:';
 const COUNTS_MEMO_TTL = 5 * 60 * 1000; // 内存 5 分钟
-const FACETS_TTL = 6 * 60 * 60 * 1000; // 落库 6 小时
+const FACETS_TTL = 24 * 60 * 60 * 1000; // 落库 24 小时：国家/分类列表变化很慢，没必要每 6 小时全表扫一次
 
 let memoCounts = { data: null, at: 0 };
 const memoFacets = new Map();

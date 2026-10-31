@@ -157,6 +157,27 @@ export async function removeBySubscription(env, subscriptionId) {
   return run(env, 'DELETE FROM channels WHERE subscription_id = ?', [subscriptionId]);
 }
 
+/** 某订阅下的全部频道 id（订阅同步做差量删除时用，只读一列，不读全行） */
+export async function idsBySubscription(env, subscriptionId) {
+  const rows = await all(env, 'SELECT id FROM channels WHERE subscription_id = ?', [subscriptionId]);
+  return rows.map((r) => r.id);
+}
+
+/** 按 id 批量删除（仅用于订阅同步中真正消失的台，不再全删全插） */
+export async function removeByIds(env, ids) {
+  if (!ids.length) return { count: 0 };
+  let count = 0;
+  for (let i = 0; i < ids.length; i += 100) {
+    const slice = ids.slice(i, i + 100);
+    const placeholders = slice.map(() => '?').join(',');
+    await run(env, `DELETE FROM channels WHERE id IN (${placeholders})`, slice);
+    await run(env, `DELETE FROM favorites WHERE channel_id IN (${placeholders})`, slice);
+    await run(env, `DELETE FROM epg_programs WHERE channel_id IN (${placeholders})`, slice);
+    count += slice.length;
+  }
+  return { count };
+}
+
 export async function countAll(env, kind) {
   if (!kind) return (await get(env, 'SELECT COUNT(*) AS c FROM channels WHERE is_active = 1'))?.c ?? 0;
   return (
