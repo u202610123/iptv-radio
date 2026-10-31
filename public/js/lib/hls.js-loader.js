@@ -58,7 +58,19 @@ export async function attachStream(video, url, { onError, isHls: isHlsFlag } = {
   if (isHls) {
     const Hls = await loadHls();
     if (Hls && Hls.isSupported()) {
-      const instance = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 30 });
+      // 加速：不要一上来就冲最高画质。底部播放条的视频框只有三百多像素宽，
+      // 1080p（6 Mbps）对这个框完全是浪费，还会因为分片太大、下载跟不上而
+      // 一直转圈。capLevelToPlayerSize 让 hls.js 按实际播放框尺寸封顶
+      // （小框约 360p/480p，全屏时自动放开）；lowLatencyMode 只适用于
+      // LL-HLS（分片内还有小分片），本源是普通 6 秒分片，开着反而有害，
+      // 所以显式关掉；初始带宽估计给 1 Mbps，避免首个分片就选高码率。
+      const instance = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        capLevelToPlayerSize: true,
+        abrEwmaDefaultEstimate: 1000000,
+        backBufferLength: 30
+      });
       instance.on(Hls.Events.ERROR, (_event, data) => {
         if (data?.fatal && typeof onError === 'function') onError(data);
       });

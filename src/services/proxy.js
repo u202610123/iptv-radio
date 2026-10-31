@@ -6,6 +6,18 @@ import { fail } from '../lib/http.js';
 
 const log = createLogger('service:proxy');
 
+/**
+ * 代理响应的缓存策略：播放列表是直播实时文件，必须每次都新鲜，
+ * 所以 no-store；分片（.ts 等）一旦发布内容就不再变，允许浏览器
+ * 缓存——转圈时 hls.js 重试同一分片、切画质回放时就不用重新下载。
+ * 上游已给缓存头时沿用上游的，没给时默认公开缓存 1 小时。
+ */
+export function responseCacheControl({ isPlaylist, upstreamCache }) {
+  if (isPlaylist) return 'no-store';
+  if (upstreamCache) return upstreamCache;
+  return 'public, max-age=3600';
+}
+
 const FORBIDDEN_RESPONSE_HEADERS = new Set([
   'content-encoding',
   'content-security-policy',
@@ -114,7 +126,12 @@ export async function proxyStream(env, rawUrl, request, options = {}) {
   responseHeaders.set('Access-Control-Allow-Origin', '*');
   responseHeaders.set('Access-Control-Allow-Headers', 'Range,Content-Type');
   responseHeaders.set('Access-Control-Expose-Headers', 'Content-Length,Content-Range');
-  responseHeaders.set('Cache-Control', 'no-store');
+  // 注意：此时还不知道是不是播放列表（要读 content-type 判断），先按
+  // 分片默认处理，下面在确认是播放列表后会再改回 no-store。
+  responseHeaders.set('Cache-Control', responseCacheControl({
+    isPlaylist: false,
+    upstreamCache: upstreamResponse.headers.get('cache-control')
+  }));
 
   if (request.method === 'HEAD') {
     return new Response(null, { status: upstreamResponse.status, headers: responseHeaders });
@@ -132,6 +149,7 @@ export async function proxyStream(env, rawUrl, request, options = {}) {
   const finalUrl = upstreamResponse.url || upstream.toString();
   const rewritten = rewritePlaylist(text, finalUrl, proxyBase, { useProxy: true });
   const finalHeaders = new Headers(responseHeaders);
+  finalHeaders.set('Cache-Control', 'no-store');
   finalHeaders.set('content-type', contentType || 'application/vnd.apple.mpegurl');
   finalHeaders.delete('content-length');
   return new Response(rewritten, { status: upstreamResponse.status, headers: finalHeaders });
