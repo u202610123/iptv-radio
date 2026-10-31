@@ -1,0 +1,28 @@
+{
+  "name": "iptv-radio-panel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Workers 上的全球 IPTV + FM/AM/SW 广播聚合播放面板（模块化设计）",
+  "scripts": {
+    "dev": "node ./node_modules/wrangler/bin/wrangler.js dev --ip 127.0.0.1 --port 8787",
+    "deploy": "node ./node_modules/wrangler/bin/wrangler.js deploy",
+    "tail": "node ./node_modules/wrangler/bin/wrangler.js tail",
+    "d1:create": "node ./node_modules/wrangler/bin/wrangler.js d1 create iptv-radio-db",
+    "d1:list": "node ./node_modules/wrangler/bin/wrangler.js d1 list",
+    "d1:local": "node ./node_modules/wrangler/bin/wrangler.js d1 execute iptv-radio-db --local --file=./src/db/schema.sql",
+    "d1:remote": "node ./node_modules/wrangler/bin/wrangler.js d1 execute iptv-radio-db --remote --file=./src/db/schema.sql",
+    "vendor": "node ./scripts/sync-assets.mjs",
+    "postinstall": "node ./scripts/sync-assets.mjs"
+  },
+  "dependencies": {
+    "hls.js": "^1.6.15"
+  },
+  "devDependencies": {
+    "wrangler": "4.155.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261023.1": true
+  }
+}

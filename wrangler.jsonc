@@ -1,0 +1,47 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "iptv-radio-panel",
+	"main": "src/index.js",
+	"compatibility_date": "2025-10-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1
+	},
+	"assets": {
+		"directory": "./public",
+		"run_worker_first": [
+			"/api/*"
+		],
+		"binding": "ASSETS"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "iptv-radio-db",
+			"database_id": "f1dbafca-fe6e-4cd1-9d20-60a5acae29fb"
+		}
+	],
+	"triggers": {
+		"crons": [
+			"17 */6 * * *"
+		]
+	},
+	"vars": {
+		"APP_TITLE": "Global IPTV & Radio",
+		"DEFAULT_PAGE_SIZE": "60",
+		"MAX_PAGE_SIZE": "200",
+		"IPTV_INDEX_URL": "https://iptv-org.github.io/iptv/index.m3u",
+		"IPTV_COUNTRIES_URL": "https://iptv-org.github.io/api/countries.json",
+		"IPTV_SYNC_COUNTRIES_PER_RUN": "24",
+		"RADIO_BROWSER_API": "https://de1.api.radio-browser.info",
+		"RADIO_SYNC_PAGES_PER_RUN": "10",
+		"RADIO_SYNC_PAGE_SIZE": "500",
+		"EPG_BASE_URL": "https://iptv-org.github.io/epg/guides",
+		"EPG_TTL_SECONDS": "21600",
+		"PROXY_MAX_URL_LENGTH": "2048",
+		"USER_AGENT": "iptv-radio-panel/1.0 (+https://github.com/)"
+	}
+}

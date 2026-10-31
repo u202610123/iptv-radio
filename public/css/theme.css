@@ -1,0 +1,302 @@
+/* Tailwind CSS CDN（基础层；面板主样式由本项目自定义，CDN 不可用时界面依然完整） */
+@import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
+
+/* ============ 设计令牌 ============ */
+:root {
+  --c-primary-1: #22d3ee;
+  --c-primary-2: #7c3aed;
+  --c-primary-3: #f472b6;
+  --c-bg-1: #0b0f1a;
+  --c-bg-2: #141b2d;
+  --c-bg-3: #1e293b;
+  --c-text-1: #e5e7eb;
+  --c-text-2: #9ca3af;
+  --c-text-3: #ffffff;
+  --c-success: #34d399;
+  --c-warning: #fbbf24;
+  --c-danger: #f87171;
+
+  --grad-neon: linear-gradient(135deg, #22d3ee 0%, #7c3aed 55%, #f472b6 100%);
+  --grad-soft: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(124, 58, 237, 0.16));
+  --glass-bg: rgba(20, 27, 45, 0.72);
+  --glass-border: rgba(148, 163, 184, 0.16);
+  --glass-shadow: 0 18px 48px rgba(2, 6, 23, 0.55);
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --font-sans: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei',
+    'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  --fs-body: 14px;
+  --fs-sub: 18px;
+  --fs-head: 28px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur: 220ms;
+}
+
+/* 浅色主题覆盖 */
+:root[data-theme='light'] {
+  --c-bg-1: #f4f6fb;
+  --c-bg-2: #ffffff;
+  --c-bg-3: #e9edf6;
+  --c-text-1: #1f2937;
+  --c-text-2: #64748b;
+  --c-text-3: #0f172a;
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+}
+
+/* ============ 基础层 ============ */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--c-text-1);
+  background: var(--c-bg-1);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* 星空底：径向光斑 + 网格 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(1100px 620px at 12% -10%, rgba(34, 211, 238, 0.16), transparent 60%),
+    radial-gradient(900px 560px at 92% 8%, rgba(124, 58, 237, 0.18), transparent 62%),
+    radial-gradient(760px 520px at 60% 108%, rgba(244, 114, 182, 0.12), transparent 60%),
+    var(--c-bg-1);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 40%, transparent 100%);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: var(--c-text-3);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+h1 {
+  font-size: var(--fs-head);
+}
+h2 {
+  font-size: 22px;
+}
+h3 {
+  font-size: var(--fs-sub);
+  font-weight: 600;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.5), rgba(124, 58, 237, 0.5));
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ============ 通用工具类 ============ */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.grad-text {
+  background: var(--grad-neon);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.muted {
+  color: var(--c-text-2);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 9px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  background: var(--c-bg-3);
+  color: var(--c-text-1);
+  font-weight: 500;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(34, 211, 238, 0.5);
+  box-shadow: 0 10px 24px rgba(34, 211, 238, 0.18);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn--primary {
+  background: var(--grad-neon);
+  color: #08111f;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.btn--ghost {
+  background: transparent;
+}
+
+.btn--danger {
+  border-color: rgba(248, 113, 113, 0.4);
+  color: var(--c-danger);
+}
+
+.btn--sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn[disabled] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--grad-soft);
+  border: 1px solid var(--glass-border);
+  font-size: 12px;
+  color: var(--c-text-2);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  border-top-color: var(--c-primary-1);
+  animation: spin 720ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(34, 211, 238, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,368 @@
+/* ============ 应用骨架 ============ */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 12px clamp(12px, 2vw, 24px);
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar__logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--grad-neon);
+  box-shadow: 0 8px 22px rgba(124, 58, 237, 0.45);
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.topbar__logo::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 4px;
+  background: var(--c-bg-1);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.topbar__title {
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.topbar__sub {
+  font-size: 12px;
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+
+.topbar__spacer {
+  flex: 1 1 auto;
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--c-bg-3);
+  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(34, 211, 238, 0.55);
+}
+
+/* ---------- 主体 ---------- */
+.app-body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 232px;
+  flex: 0 0 auto;
+  padding: var(--space-4) var(--space-3);
+  border-right: 1px solid var(--glass-border);
+  background: linear-gradient(180deg, rgba(20, 27, 45, 0.6), rgba(11, 15, 26, 0.4));
+  overflow-y: auto;
+}
+
+.view {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: clamp(14px, 2vw, 24px);
+  padding-bottom: 120px;
+}
+
+.view > * + * {
+  margin-top: var(--space-4);
+}
+
+/* ---------- 页面头部 ---------- */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-head__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-head__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  color: var(--c-text-2);
+  font-size: 13px;
+}
+
+/* ---------- 内容布局 ---------- */
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.section {
+  padding: var(--space-4);
+}
+
+.section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  gap: var(--space-2);
+}
+
+/* ---------- 底部播放器 ---------- */
+.player-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 10px clamp(10px, 2vw, 22px) calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(11, 15, 26, 0.2), rgba(11, 15, 26, 0.92));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid var(--glass-border);
+  transform: translateY(110%);
+  transition: transform 320ms var(--ease);
+}
+
+.player-dock.is-open {
+  transform: translateY(0);
+}
+
+/* 收起态：整条滑出屏幕，只留迷你控制按钮 */
+.player-dock.is-open.is-collapsed {
+  transform: translateY(110%);
+}
+
+.player-mini {
+  display: none;
+  position: fixed;
+  right: 22px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 41;
+  gap: 2px;
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: rgba(10, 15, 26, 0.92);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.player-mini.is-visible {
+  display: flex;
+}
+
+.player-mini .icon-btn {
+  width: 30px;
+  height: 30px;
+}
+
+/* ---------- 佛经佛法专题 ---------- */
+.buddhist-head {
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+  border-radius: var(--radius-lg);
+}
+
+.buddhist-head__title h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
+.buddhist-head__title .muted {
+  margin: 0;
+  font-size: 13px;
+}
+
+.buddhist-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 12px;
+}
+
+.buddhist-search {
+  position: relative;
+  max-width: 360px;
+}
+
+.buddhist-search .search-box__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--c-text-3);
+}
+
+.buddhist-search input {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--surface-1);
+  color: var(--c-text-1);
+  font-size: 14px;
+}
+
+.buddhist-section {
+  margin: 18px 0 10px;
+  font-size: 15px;
+  color: var(--c-text-2);
+}
+
+/* ---------- 移动端底部导航 ---------- */
+.mobile-nav {
+  display: none;
+}
+
+.boot-splash {
+  min-height: 60vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  color: var(--c-text-2);
+}
+
+.boot-splash__logo {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: var(--grad-neon);
+  animation: pulse-glow 1.8s ease-in-out infinite;
+}
+
+/* ---------- 抽屉遮罩 ---------- */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 1180px) {
+  .content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    z-index: 26;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 264px;
+    transform: translateX(-102%);
+    transition: transform 280ms var(--ease);
+    background: var(--c-bg-2);
+    box-shadow: var(--glass-shadow);
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .topbar__sub {
+    display: none;
+  }
+
+  .view {
+    padding-bottom: 150px;
+  }
+
+  .mobile-nav {
+    position: fixed;
+    z-index: 35;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    grid-auto-flow: column;
+    gap: 2px;
+    padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+    background: var(--glass-bg);
+    border-top: 1px solid var(--glass-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .player-dock.is-open {
+    bottom: 62px;
+  }
+}
+
+@media (min-width: 901px) {
+  .mobile-nav {
+    display: none !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    padding: 10px 12px;
+    gap: var(--space-2);
+  }
+
+  .topbar__title {
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+}
