@@ -101,6 +101,13 @@
   overflow-y: auto;
 }
 
+/* 桌面端菜单按钮折叠：只在 >900px 生效，移动端抽屉仍用 is-open + transform */
+@media (min-width: 901px) {
+  .sidebar.is-collapsed {
+    display: none;
+  }
+}
+
 .view {
   flex: 1 1 auto;
   min-width: 0;

@@ -25,15 +25,34 @@ window.__imgFallback = imageFallback;
 
 const ROUTE_KIND = { iptv: 'iptv', radio: 'radio' };
 
+// 菜单按钮修复：以前它只切 is-open，而 is-open 的样式只在 <=900px 的
+// 移动端抽屉里才生效，桌面端侧边栏本来就是常驻的 flex 列，切了也看
+// 不出任何变化——所以桌面上“点上不管用”。现在分开处理：
+//  - 移动端（<=900px）：沿用抽屉 is-open + 遮罩，跳路由时自动关抽屉；
+//  - 桌面端：切 is-collapsed（CSS 里桌面端才 display:none），跳路由
+//    时 force=false 不得把已折叠的侧边栏再打开，否则折叠就白折了。
+// 折叠状态用单独的 localStorage 键持久化，刷新后仍保持。
+const SIDEBAR_COLLAPSED_KEY = 'iptv-radio-panel:sidebar-collapsed';
 function toggleSidebar(force) {
   const sidebar = document.getElementById('sidebar');
   const backdrop = document.getElementById('drawer-backdrop');
   if (!sidebar) return;
-  const open = force !== undefined ? force : !sidebar.classList.contains('is-open');
-  sidebar.classList.toggle('is-open', open);
-  if (backdrop) {
-    if (open) backdrop.removeAttribute('hidden');
-    else backdrop.setAttribute('hidden', '');
+  if (window.innerWidth <= 900) {
+    const open = force !== undefined ? force : !sidebar.classList.contains('is-open');
+    sidebar.classList.toggle('is-open', open);
+    if (backdrop) {
+      if (open) backdrop.removeAttribute('hidden');
+      else backdrop.setAttribute('hidden', '');
+    }
+    return;
+  }
+  if (force === false) return; // 桌面端跳路由不改变折叠状态
+  const collapsed = force === true ? true : !sidebar.classList.contains('is-collapsed');
+  sidebar.classList.toggle('is-collapsed', collapsed);
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    /* 隐私模式等写失败不影响折叠本身 */
   }
 }
 
@@ -49,6 +68,13 @@ async function bootstrap() {
     onToggleSidebar: () => toggleSidebar()
   });
   renderSidebar(sidebar);
+  try {
+    if (window.innerWidth > 900 && localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') {
+      sidebar.classList.add('is-collapsed');
+    }
+  } catch {
+    /* 忽略 */
+  }
   renderMobileNav(mobileNav);
   initPlayer($('#player-dock'));
 
