@@ -325,6 +325,8 @@ async function startSource(channel, { isFallback = false, seq = null } = {}) {
     video.classList.remove('hidden');
     video.volume = Number($('#player-volume')?.value || 0.9);
     await attachStream(video, currentUrl, {
+      // 直接从源地址判断，不要让 attachStream 只靠代理 URL 猜（见 hls.js-loader）
+      isHls: /\.m3u8(\?|$)/i.test(channel.stream_url || ''),
       onError: () => {
         try {
           video.dispatchEvent(new Event('error'));
