@@ -21,6 +21,7 @@ export function channelCard(channel, playingId) {
       <div class="channel-card__meta">
         ${channel.country ? html`<span class="tag">${channel.country}</span>` : ''}
         ${category ? html`<span class="tag">${category}</span>` : ''}
+        ${channel._sourceCount > 1 ? html`<span class="tag">多源 ×${channel._sourceCount}</span>` : ''}
       </div>
     </article>
   `;
@@ -46,6 +47,7 @@ export function stationRow(channel, playingId) {
           ${channel.band ? html`<span class="band-badge band-badge--${channel.band}">${channel.band}</span>` : ''}
           ${channel.country ? html`<span>${channel.country}</span>` : ''}
           ${category ? html`<span>· ${category}</span>` : ''}
+          ${channel._sourceCount > 1 ? html`<span>· 多源 ×${channel._sourceCount}</span>` : ''}
         </div>
       </div>
       <button class="icon-btn" data-action="fav" data-id="${channel.id}" title="收藏">${raw(icon('star', 16, channel.is_favorite ? 'is-on' : ''))}</button>

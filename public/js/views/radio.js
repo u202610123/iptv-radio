@@ -3,13 +3,14 @@ import { api } from '../api.js';
 import { store } from '../state.js';
 import { filterBarHtml, bindFilterBar } from '../components/filters.js';
 import { stationListHtml, emptyState, skeletonRows } from '../components/channel-card.js';
+import { groupChannels } from '../lib/group.js';
 import * as player from '../components/player.js';
 import { toastSuccess, toastError } from '../components/toast.js';
 
 const KIND = 'radio';
 const PAGE_SIZE = 60;
 
-const state = { page: 1, total: 0, items: [], facets: null, loading: false, container: null };
+const state = { page: 1, total: 0, items: [], rawItems: [], facets: null, loading: false, container: null };
 
 export default {
   id: KIND,
@@ -19,6 +20,7 @@ export default {
     state.container = container;
     state.page = 1;
     state.items = [];
+    state.rawItems = [];
 
     container.innerHTML = html`
       <div id="radio-filters"></div>
@@ -34,7 +36,7 @@ export default {
             <h3>正在收听</h3>
             <button class="icon-btn" id="side-toggle" title="收起 / 展开">${raw(icon('chevron-up', 16))}</button>
           </div>
-          <div id="radio-now">${raw(nowPlayingHtml(null))}</div>
+          <div id="radio-now">${raw(nowPlayingHtml(player.currentChannel()))}</div>
         </aside>
       </div>
     `;
@@ -204,6 +206,7 @@ async function load({ reset = false, append = false } = {}) {
   if (reset && list) {
     state.page = 1;
     state.items = [];
+    state.rawItems = [];
     list.innerHTML = skeletonRows(8);
   }
 
@@ -216,7 +219,9 @@ async function load({ reset = false, append = false } = {}) {
       page: state.page,
       pageSize: PAGE_SIZE
     });
-    state.items = append ? state.items.concat(data.items) : data.items;
+    state.rawItems = append ? state.rawItems.concat(data.items) : data.items;
+    // 同名合并：同一页内的同名多源只显示一行，点开后播放器按组内顺序试源
+    state.items = groupChannels(state.rawItems);
     state.total = data.total;
     if (list) {
       if (!state.items.length) {
@@ -242,7 +247,9 @@ async function load({ reset = false, append = false } = {}) {
 
 function markPlaying(root, playingId) {
   root.querySelectorAll('.station-row').forEach((row) => {
-    row.classList.toggle('is-playing', row.dataset.id === playingId);
+    const channel = state.items.find((c) => c.id === row.dataset.id);
+    const inGroup = channel?._sources?.some((s) => s.id === playingId);
+    row.classList.toggle('is-playing', row.dataset.id === playingId || !!inGroup);
   });
 }
 

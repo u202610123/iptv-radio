@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { store } from '../state.js';
 import { filterBarHtml, bindFilterBar } from '../components/filters.js';
 import { gridHtml, emptyState, skeletonGrid } from '../components/channel-card.js';
+import { groupChannels } from '../lib/group.js';
 import { epgPanelHtml, renderEpg, bindEpgRefresh } from '../components/epg-panel.js';
 import * as player from '../components/player.js';
 import { toastSuccess, toastError } from '../components/toast.js';
@@ -14,6 +15,7 @@ const state = {
   page: 1,
   total: 0,
   items: [],
+  rawItems: [],
   facets: null,
   loading: false,
   container: null
@@ -27,6 +29,7 @@ export default {
     state.container = container;
     state.page = 1;
     state.items = [];
+    state.rawItems = [];
 
     container.innerHTML = html`
       <div id="iptv-filters"></div>
@@ -121,6 +124,7 @@ async function load({ reset = false, append = false } = {}) {
   if (reset) {
     state.page = 1;
     state.items = [];
+    state.rawItems = [];
     if (list) list.innerHTML = skeletonGrid(12);
   }
 
@@ -133,7 +137,8 @@ async function load({ reset = false, append = false } = {}) {
       page: state.page,
       pageSize: PAGE_SIZE
     });
-    state.items = append ? state.items.concat(data.items) : data.items;
+    state.rawItems = append ? state.rawItems.concat(data.items) : data.items;
+    state.items = groupChannels(state.rawItems);
     state.total = data.total;
     renderList(list);
     if (moreBtn) moreBtn.hidden = !data.hasMore;
@@ -163,7 +168,9 @@ function renderList(list) {
 
 function markPlaying(root, playingId) {
   root.querySelectorAll('.channel-card').forEach((card) => {
-    card.classList.toggle('is-playing', card.dataset.id === playingId);
+    const channel = state.items.find((c) => c.id === card.dataset.id);
+    const inGroup = channel?._sources?.some((s) => s.id === playingId);
+    card.classList.toggle('is-playing', card.dataset.id === playingId || !!inGroup);
   });
 }
 

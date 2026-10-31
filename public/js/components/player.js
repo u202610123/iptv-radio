@@ -2,7 +2,7 @@ import { html, raw, $, $$, esc, icon, initials } from '../lib/dom.js';
 import { attachStream, destroyHls } from '../lib/hls.js-loader.js';
 import { api } from '../api.js';
 import { store } from '../state.js';
-import { toastError } from './toast.js';
+import { toast, toastError } from './toast.js';
 
 let shell = null; // 外层底座（#player-dock，控制显示/隐藏）
 let dock = null; // 内层 .player 面板
@@ -16,6 +16,8 @@ let miniEl = null;
 let switching = false; // 多源切换中，屏蔽散点报错 toast
 let current = null;
 let currentUrl = '';
+let playSeq = 0; // 播放代次：点新台时旧流程全部作废，不再改 current、不再弹 toast
+let fallbackToasted = false; // 本次播放内“正在换备用源”只提示一次
 
 /** 挂载播放器（固定底部 Dock） */
 export function initPlayer(container) {
@@ -117,10 +119,10 @@ export function initPlayer(container) {
   audio.addEventListener('play', () => syncToggle(true));
   audio.addEventListener('pause', () => syncToggle(false));
   video.addEventListener('error', () => {
-    if (!switching) toastError('视频流加载失败，请尝试其他频道或开启流代理');
+    if (!switching && current) toastError('视频流加载失败，请尝试其他频道或开启流代理');
   });
   audio.addEventListener('error', () => {
-    if (!switching) toastError('音频流加载失败，请尝试其他电台');
+    if (!switching && current) toastError('音频流加载失败，请尝试其他电台');
   });
 }
 
@@ -149,7 +151,9 @@ function syncMute() {
   btn.innerHTML = icon(target.muted || target.volume === 0 ? 'volume-x' : 'volume', 16);
 }
 
-/** 自动播放被浏览器拦截时的兜底：先静音起播，用户点「播放」/拖音量即恢复声音 */
+/** 自动播放被浏览器拦截时的兜底：先静音起播，用户点「播放」/拖音量即恢复声音
+ * 注意：静音兜底成功时只给一条 info 提示，不再用 error toast，避免与
+ * 播放失败的最终提示叠加；静音也失败时不单独提示，交给 play() 的最终提示。 */
 async function startMedia(el) {
   try {
     await el.play();
@@ -158,12 +162,8 @@ async function startMedia(el) {
     if (err?.name !== 'NotAllowedError') throw err;
   }
   el.muted = true;
-  try {
-    await el.play();
-    toastError('浏览器限制了自动播放：已先静音播放，点「播放」或拖动音量即可恢复声音');
-  } catch {
-    toastError('浏览器阻止了自动播放，请点击播放按钮');
-  }
+  await el.play();
+  toast('已静音播放，点「播放」或拖动音量可恢复声音', 'info');
 }
 
 /** 播放源地址：默认全部经 Cloudflare 代理（边缘加速、隐藏本机 IP、绕过地区限制与混合内容拦截） */
@@ -179,8 +179,13 @@ export function mediaElements() {
   return { audio, video, dock, shell, current, currentUrl };
 }
 
-/** 同名多源：库里同名频道的其他 URL（不同来源 / 镜像），播不动时自动切换 */
+/** 同名多源：优先用列表分组时已挂上的 _sources（精确同名、按热度排好序），
+ * 不再靠名字模糊搜索召回；只有未分组的入口（如收藏、历史、佛教页）才走
+ * 旧的模糊搜索兜底。 */
 async function siblingSources(channel) {
+  if (Array.isArray(channel._sources) && channel._sources.length > 1) {
+    return channel._sources.filter((c) => c.id !== channel.id && c.stream_url).slice(0, 3);
+  }
   try {
     const params = { kind: channel.kind, q: channel.name, pageSize: 10, page: 1 };
     const data = channel.kind === 'radio' ? await api.stations(params) : await api.channels(params);
@@ -223,9 +228,16 @@ function waitPlaying(el, ms = 10000) {
   });
 }
 
-/** 播放指定频道：主源立即起播（保留用户手势），失败时自动切换同名备用源 */
+/** 播放指定频道：主源立即起播（保留用户手势），失败时自动切换同名备用源
+ * 代次保护：本次播放开始时 playSeq +1；任何一步发现代次已变，说明用户
+ * 已点了新台，本流程静默退出，不改 current、不弹 toast、不 stop 新台。
+ * 全部失败且仍是当前代次时：先 stop() 清掉 dock 与「正在收听」，再只弹
+ * 一条最终失败提示，杜绝“播死了还显示在播”。 */
 export async function play(channel) {
   if (!channel || !channel.stream_url) return null;
+  const mySeq = ++playSeq;
+  const isStale = () => mySeq !== playSeq;
+  fallbackToasted = false;
   shell.classList.add('is-open');
   shell.classList.remove('is-collapsed');
   miniEl?.classList.remove('is-visible');
@@ -237,34 +249,46 @@ export async function play(channel) {
   let lastError = null;
   try {
     try {
-      await startSource(channel, { isFallback: false });
+      await startSource(channel, { isFallback: false, seq: mySeq });
+      if (isStale()) return null;
       return channel;
     } catch (err) {
+      if (isStale() || err?.name === 'AbortError') return null;
       lastError = err;
     }
     const extra = await siblingsPromise;
+    if (isStale()) return null;
     for (const src of extra) {
       try {
-        await startSource(src, { isFallback: true });
+        await startSource(src, { isFallback: true, seq: mySeq });
+        if (isStale()) return null;
         return src;
       } catch (err) {
+        if (isStale() || err?.name === 'AbortError') return null;
         lastError = err;
       }
     }
   } finally {
-    switching = false;
+    if (!isStale()) switching = false;
   }
 
+  // 全部失败：清状态后只留一条提示
+  stop();
   toastError(
     lastError?.message === '加载超时'
       ? '该频道无法播放（加载超时），请换个频道试试'
       : '该频道无法播放，请换个频道试试'
   );
-  document.dispatchEvent(new CustomEvent('player:change', { detail: channel }));
   return null;
 }
 
-async function startSource(channel, { isFallback = false } = {}) {
+async function startSource(channel, { isFallback = false, seq = null } = {}) {
+  const isStale = () => seq !== null && seq !== playSeq;
+  if (isStale()) {
+    const err = new Error('已取消');
+    err.name = 'AbortError';
+    throw err;
+  }
   current = channel;
   currentUrl = playbackUrl(channel);
   store.setCurrent(channel);
@@ -279,7 +303,10 @@ async function startSource(channel, { isFallback = false } = {}) {
     <span>· ${channel.kind === 'radio' ? '广播' : '电视'}</span>
     ${isFallback ? html`<span>· 备用源</span>` : ''}
   `;
-  if (isFallback) toastError('主源不可用，正在切换备用源…');
+  if (isFallback && !fallbackToasted) {
+    fallbackToasted = true;
+    toast('主源不可用，正在尝试备用源…', 'info');
+  }
 
   destroyHls();
   video.pause();
@@ -308,6 +335,12 @@ async function startSource(channel, { isFallback = false } = {}) {
     });
     await startMedia(video);
     await waitPlaying(video);
+  }
+
+  if (isStale()) {
+    const err = new Error('已取消');
+    err.name = 'AbortError';
+    throw err;
   }
 
   // 记录播放历史（失败不影响播放）
