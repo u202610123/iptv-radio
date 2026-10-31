@@ -172,9 +172,12 @@ const TOPICS = {
     '寺庙', '寺院', '菩萨', '观音', '地藏', '药师', '弥陀', '心经', '金刚经',
     '大悲咒', '楞严', '华严', '法华', '无量寿', '莲', '梵音', '菩提', '共修',
     '三时系念', '蒙山', '焰口',
+    '净空', '华藏', '净宗', '弘化', '悟道', '讲经', '说法', '开示', '禅修',
+    '藏传', '南传', '佛光山', '法鼓山', '慈济', '大爱',
     'buddha', 'buddhist', 'buddhism', 'dharma', 'sutra', 'dhammapada', 'lotus',
-    'temple', 'monastery', 'zen', 'chant', 'dhamma', 'nikaya', 'vinaya',
-    'mahayana', 'theravada', 'vajrayana', 'kannon', 'guanyin', 'amitabha', 'metta', 'mantra'
+    'temple', 'monastery', 'zen', 'chant', 'chanting', 'dhamma', 'nikaya', 'vinaya',
+    'mahayana', 'theravada', 'vajrayana', 'kannon', 'guanyin', 'amitabha', 'metta', 'mantra',
+    'meditation', 'mindfulness', 'tibetan', 'pali', 'nirvana', 'sangha'
   ]
 };
 
@@ -205,13 +208,36 @@ const TOPIC_STRONG = [
   'mahayana', 'theravada', 'vajrayana', 'nikaya', 'vinaya',
   '佛', '佛教', '佛法', '念佛', '诵经', '法师', '寺庙', '寺院', '菩萨',
   '观音', '地藏', '药师', '弥陀', '心经', '金刚经', '大悲咒', '楞严',
-  '华严', '法华', '无量寿', '菩提', '共修', '三时系念', '蒙山', '焰口', '法会', '道场'
+  '华严', '法华', '无量寿', '菩提', '共修', '三时系念', '蒙山', '焰口', '法会', '道场',
+  '净空', '华藏', '净宗', '弘化', '悟道', '讲经', '说法', '开示', '禅修',
+  '藏传', '南传', '佛光山', '法鼓山', '慈济', '大爱'
 ];
-const TOPIC_WEAK_ASCII = ['zen', 'chant', 'lotus', 'temple', 'monastery', 'mantra', 'metta', 'kannon', 'guanyin', 'amitabha', 'sutra'];
+const TOPIC_WEAK_ASCII = ['zen', 'chant', 'chanting', 'lotus', 'temple', 'monastery', 'mantra', 'metta', 'kannon', 'guanyin', 'amitabha', 'sutra', 'meditation', 'mindfulness', 'tibetan', 'pali', 'nirvana', 'sangha'];
+// 地名黑名单：单字“佛”会把佛山/佛冈地方台放进来；只有当名字里除“佛”外
+// 没有其他强词信号时，才按地名排除。
+const TOPIC_PLACE_EXCLUSIONS = ['佛山', '佛冈'];
+
+function topicExtraBlob(row) {
+  let extra = row.extra;
+  if (typeof extra === 'string') {
+    try { extra = JSON.parse(extra); } catch { extra = {}; }
+  }
+  const tags = Array.isArray(extra?.tags) ? extra.tags.join(' ') : '';
+  return `${tags} ${extra?.homepage || ''} ${row.stream_url || ''}`;
+}
+
+function hasStrongOtherThanFo(blob) {
+  const lower = blob.toLowerCase();
+  return TOPIC_STRONG.some((w) => w !== '佛' && lower.includes(w.toLowerCase()));
+}
 
 function topicScore(row) {
-  const blob = `${row.name || ''} ${row.category || ''}`;
+  const nameCat = `${row.name || ''} ${row.category || ''}`;
+  // 打分看名字 + 分类 + 标签 + 主页 + 流地址：华藏系（hwadzan/amtb）
+  // 很多条名字本身是中性的“多元文化台”，只有来源域名能证明它是佛教内容。
+  const blob = `${nameCat} ${topicExtraBlob(row)}`;
   const lower = blob.toLowerCase();
+  if (lower.includes('hwadzan') || lower.includes('amtb')) return 3;
   for (const w of TOPIC_STRONG) {
     if (lower.includes(w.toLowerCase())) return 3;
   }
@@ -238,12 +264,25 @@ export function filterTopicRows(rows) {
   const seen = new Set();
   const kept = [];
   for (const row of rows) {
+    const nameCat = `${row.name || ''} ${row.category || ''}`;
+    // 地名排除：佛山/佛冈地方台只有单字“佛”信号时排除
+    if (TOPIC_PLACE_EXCLUSIONS.some((place) => nameCat.includes(place)) && !hasStrongOtherThanFo(nameCat)) continue;
     const score = topicScore(row);
     if (score <= 0) continue;
-    const key = `${row.kind || ''}:${normalizeChannelName(row.name)}`;
+    // 种类纠正：华藏系视频流（hwadzan/amtb + .m3u8）本是电视直播，却因来自
+    // radio-browser 被记成 radio/FM；专题里直接纠正为 iptv，这样播放器
+    // 才会用 <video> + hls.js 播，而不是用 Audio 播视频流。去重键用纠正后
+    // 的 kind，避免同名条目纠正后又在电视区重复出现。
+    let out = { ...row, _topicScore: score };
+    const stream = String(row.stream_url || '').toLowerCase();
+    const extraBlob = topicExtraBlob(row).toLowerCase();
+    if (row.kind === 'radio' && stream.includes('.m3u8') && (extraBlob.includes('hwadzan') || extraBlob.includes('amtb'))) {
+      out = { ...out, kind: 'iptv', band: null };
+    }
+    const key = `${out.kind || ''}:${normalizeChannelName(out.name)}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    kept.push({ ...row, _topicScore: score });
+    kept.push(out);
   }
   kept.sort((a, b) => b._topicScore - a._topicScore || String(a.name).localeCompare(String(b.name)));
   return kept.map(({ _topicScore, ...row }) => row);
@@ -315,17 +354,26 @@ export async function list(env, filters = {}) {
   }
 
   if (q) {
-    const match = buildFtsQuery(q);
-    const ftsSql = `
+    // 中文搜索：FTS5 unicode61 分词对中文连续词不可靠（实测“净空/讲经/
+    // 念佛”返回 0 条，而“华藏”能返回），中文查询直接走 LIKE；非中文
+    // 查询仍先走 FTS，但 FTS 返回空结果时也回退 LIKE，避免“有数据却
+    // 搜不到”的假阴性。
+    const isCjk = /[\u4e00-\u9fff]/.test(q);
+    if (!isCjk) {
+      const match = buildFtsQuery(q);
+      const ftsSql = `
       SELECT c.* FROM channels c
       JOIN (SELECT rowid FROM channels_fts WHERE channels_fts MATCH ?) f ON f.rowid = c.rowid
       WHERE ${whereSql}
       ORDER BY ${orderBy}
       LIMIT ? OFFSET ?`;
-    try {
-      return await all(env, ftsSql, [match, ...params, pageSize, offset]);
-    } catch {
-      /* FTS 不可用或语法异常 → 回退 LIKE */
+      try {
+        const rows = await all(env, ftsSql, [match, ...params, pageSize, offset]);
+        if (rows.length) return rows;
+        /* FTS 空结果 → 继续回退 LIKE */
+      } catch {
+        /* FTS 不可用或语法异常 → 回退 LIKE */
+      }
     }
     const like = `%${q}%`;
     return all(
@@ -355,18 +403,22 @@ export async function count(env, filters = {}) {
     return filterTopicRows(candidates).length;
   }
   if (q) {
-    const match = buildFtsQuery(q);
-    try {
-      const row = await get(
-        env,
-        `SELECT COUNT(*) AS c FROM channels c
-         JOIN (SELECT rowid FROM channels_fts WHERE channels_fts MATCH ?) f ON f.rowid = c.rowid
-         WHERE ${whereSql}`,
-        [match, ...params]
-      );
-      return row?.c ?? 0;
-    } catch {
-      /* 回退 */
+    const isCjk = /[\u4e00-\u9fff]/.test(q);
+    if (!isCjk) {
+      const match = buildFtsQuery(q);
+      try {
+        const row = await get(
+          env,
+          `SELECT COUNT(*) AS c FROM channels c
+           JOIN (SELECT rowid FROM channels_fts WHERE channels_fts MATCH ?) f ON f.rowid = c.rowid
+           WHERE ${whereSql}`,
+          [match, ...params]
+        );
+        if (row?.c) return row.c;
+        /* FTS 空结果 → 继续回退 LIKE */
+      } catch {
+        /* 回退 */
+      }
     }
     const like = `%${q}%`;
     const row = await get(

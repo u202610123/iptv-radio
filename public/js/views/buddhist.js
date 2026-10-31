@@ -8,7 +8,7 @@ import { toastSuccess, toastError } from '../components/toast.js';
 const PAGE_SIZE = 60;
 
 const state = {
-  tab: 'all', // all | radio | iptv
+  tab: 'all', // all | radio | iptv | jingkong
   q: '',
   page: 1,
   total: 0,
@@ -50,6 +50,7 @@ export default {
           <button class="chip is-active" data-tab="all">全部</button>
           <button class="chip" data-tab="radio">广播</button>
           <button class="chip" data-tab="iptv">电视</button>
+          <button class="chip" data-tab="jingkong">净空讲法</button>
         </div>
         <div class="buddhist-search">
           <span class="search-box__icon">${raw(icon('search', 16))}</span>
@@ -132,18 +133,41 @@ async function load({ reset = false, append = false } = {}) {
     let iptv = { items: [], total: 0 };
     const q = state.q || undefined;
 
-    if (state.tab === 'all') {
+    if (state.tab === 'all' || state.tab === 'jingkong') {
       [radio, iptv] = await Promise.all([
-        api.stations({ topic: 'buddhist', q, pageSize: PAGE_SIZE, page: 1 }).catch(() => ({ items: [], total: 0 })),
-        api.channels({ topic: 'buddhist', kind: 'iptv', q, pageSize: PAGE_SIZE, page: 1 }).catch(() => ({ items: [], total: 0 }))
+        api.stations({ topic: 'buddhist', q: state.tab === 'jingkong' ? undefined : q, pageSize: PAGE_SIZE, page: 1 }).catch(() => ({ items: [], total: 0 })),
+        api.channels({ topic: 'buddhist', kind: 'iptv', q: state.tab === 'jingkong' ? undefined : q, pageSize: PAGE_SIZE, page: 1 }).catch(() => ({ items: [], total: 0 }))
       ]);
+      // 纠正后的 kind 为准重新分流：华藏视频流在后端专题里已由 radio 纠正
+      // 为 iptv，若仍按接口来源分栏，它们会错误地留在广播区；这里按纠正后
+      // 的 kind 分到电视区，播放器也因此会用 <video> 而不是 Audio。
+      const uniq = [];
+      const seenIds = new Set();
+      for (const c of [...(radio.items || []), ...(iptv.items || [])]) {
+        if (seenIds.has(c.id)) continue;
+        seenIds.add(c.id);
+        uniq.push(c);
+      }
+      let allItems = uniq;
+      if (state.tab === 'jingkong') {
+        // 精选：名字含净空/华藏/悟道/净宗，或流地址含华藏域名
+        const isJingkong = (c) => /净空|华藏|悟道|净宗/.test(c.name || '') || /hwadzan|amtb/i.test(c.stream_url || '');
+        allItems = uniq.filter(isJingkong);
+        if (state.q) {
+          const qq = state.q.toLowerCase();
+          allItems = allItems.filter((c) => String(c.name || '').toLowerCase().includes(qq));
+        }
+      }
+      radio = { items: allItems.filter((c) => c.kind !== 'iptv'), total: radio.total || 0 };
+      iptv = { items: allItems.filter((c) => c.kind === 'iptv'), total: iptv.total || 0 };
+      if (state.tab === 'jingkong') state.total = allItems.length;
     } else if (state.tab === 'radio') {
       radio = await api.stations({ topic: 'buddhist', q, pageSize: PAGE_SIZE, page: state.page });
     } else {
       iptv = await api.channels({ topic: 'buddhist', kind: 'iptv', q, pageSize: PAGE_SIZE, page: state.page });
     }
 
-    state.total = (radio.total || 0) + (iptv.total || 0);
+    if (state.tab !== 'jingkong') state.total = (radio.total || 0) + (iptv.total || 0);
     // 优化：原来“加载更多”会把上一页替换掉（loadMore 后只剩新一页），
     // 现在追加累积，翻页不再丢已看过的条目。
     state.radioItems = append ? state.radioItems.concat(radio.items || []) : radio.items || [];
@@ -176,7 +200,7 @@ function renderResults(host, radioItems, iptvItems) {
     htmlStr += `<h3 class="buddhist-section">电视 · ${iptvItems.length}</h3>`;
     htmlStr += gridHtml(iptvItems, playingId);
   }
-  const hasMore = state.tab !== 'all' && state.page * PAGE_SIZE < state.total;
+  const hasMore = state.tab !== 'all' && state.tab !== 'jingkong' && state.page * PAGE_SIZE < state.total;
   host.innerHTML = html`${raw(htmlStr)}${
     hasMore
       ? html`<div class="load-more"><button class="btn" data-action="more">${raw(icon('plus', 14))} 加载更多</button></div>`
