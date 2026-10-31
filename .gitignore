@@ -3,6 +3,8 @@ node_modules/
 .dev.vars
 .smoke.js
 *.log
+.dev.err
+.codebuddy/
 .DS_Store
 Thumbs.db
 
